@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql/driver"
 	"flag"
 	"fmt"
 	"github.com/bitly/go-nsq"
@@ -9,7 +8,9 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	"log"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -19,6 +20,8 @@ func fatal(e error){
 	flag.PrintDefaults()
 	fatalErr = e
 }
+
+const updateDuration = 1 * time.Second
 
 func main(){
 	defer func(){
@@ -48,7 +51,7 @@ func main(){
 	}
 
 	q.AddHandler(nsq.HandlerFunc(func(m *nsq.Message)error {
-		//todo
+
 		countsLock.Lock()
 		defer countsLock.Unlock()
 		if counts == nil{
@@ -91,4 +94,16 @@ func main(){
 		}
 		updater.Reset(updateDuration)
 	})
+
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	for{
+		select {
+		case <- termChan:
+			updater.Stop()
+			q.Stop()
+			case <- q.StopChan:
+				return
+		}
+	}
 }
