@@ -1,12 +1,30 @@
 package main
 
 import (
+	"flag"
 	"gopkg.in/mgo.v2"
+	"log"
 	"net/http"
+	"time"
 )
 
 func main(){
-
+	var (
+		addr = flag.String("addr", ":8080", "エンドポイントのアドレス")
+		mongo = flag.String("mongo", "localhost", "MongoDBのアドレス")
+	)
+	flag.Parse()
+	log.Println("MongoDBに接続します", *mongo)
+	db, err := mgo.Dial(*mongo)
+	if err != nil{
+		log.Fatalln("MongoDBへの接続に失敗しました：", err)
+	}
+	defer db.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/polls/", withCORS(withVars(withData(db, WithAPIKey(handlePolls)))))
+	log.Println("Webサーバーを開始します：", *addr)
+	graceful.Run(*addr, 1*time.Second, mux)
+	log.Println("停止します...")
 }
 
 
@@ -40,3 +58,12 @@ func withVars(fn http.HandlerFunc) http.HandlerFunc{
 		fn(w, r)
 	}
 }
+
+func withCORS(fn http.HandlerFunc) http.HandlerFunc{
+	return func(w http.ResponseWriter, r *http.Request){
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Expose-Headers", "Location")
+		fn(w, r)
+	}
+}
+
