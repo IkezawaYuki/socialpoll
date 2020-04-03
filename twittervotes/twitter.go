@@ -64,6 +64,7 @@ func setupTwitterAuth(){
 	}
 }
 
+
 var (
 	authSetupOnce sync.Once
 	httpClient *http.Client
