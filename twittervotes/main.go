@@ -2,23 +2,22 @@ package main
 
 import (
 	"github.com/nsqio/go-nsq"
+	"gopkg.in/mgo.v2"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-	"gopkg.in/mgo.v2"
 )
 
-
-func main()  {
+func main() {
 	var stoplock sync.Mutex
 	stop := false
 	stopChan := make(chan struct{}, 1)
 	signalChan := make(chan os.Signal, 1)
 	go func() {
-		<- signalChan
+		<-signalChan
 		stoplock.Lock()
 		stop = true
 		stoplock.Unlock()
@@ -28,7 +27,7 @@ func main()  {
 	}()
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	if err := dialdb(); err != nil{
+	if err := dialdb(); err != nil {
 		log.Fatalln("MongoDBへのダイヤルに失敗しました：", err)
 	}
 	defer closedb()
@@ -37,31 +36,32 @@ func main()  {
 	publisherStoppedChan := publishVotes(votes)
 	twitterStoppedChan := startTwitterStream(stopChan, votes)
 	go func() {
-		for{
+		for {
 			time.Sleep(1 * time.Minute)
 			closeConn()
 			stoplock.Lock()
-			if stop{
+			if stop {
 				stoplock.Unlock()
 				break
 			}
 			stoplock.Unlock()
 		}
 	}()
-	<- twitterStoppedChan
+	<-twitterStoppedChan
 	close(votes)
-	<- publisherStoppedChan
+	<-publisherStoppedChan
 }
 
 var db *mgo.Session
-func dialdb() error{
+
+func dialdb() error {
 	var err error
 	log.Println("MongoDBにダイヤル中: localhost")
 	db, err = mgo.Dial("localhost")
 	return err
 }
 
-func closedb(){
+func closedb() {
 	db.Close()
 	log.Println("データベースの接続が閉じられました")
 }
@@ -69,22 +69,23 @@ func closedb(){
 type poll struct {
 	Options []string
 }
-func loadOptions()([]string, error){
+
+func loadOptions() ([]string, error) {
 	var options []string
 	iter := db.DB("ballots").C("polls").Find(nil).Iter()
 	var p poll
-	for iter.Next(&p){
+	for iter.Next(&p) {
 		options = append(options, p.Options...)
 	}
 	iter.Close()
 	return options, iter.Err()
 }
 
-func publishVotes(votes <-chan string)<-chan struct{}{
+func publishVotes(votes <-chan string) <-chan struct{} {
 	stopchan := make(chan struct{}, 1)
 	pub, _ := nsq.NewProducer("localhost:4150", nsq.NewConfig())
 	go func() {
-		for vote := range votes{
+		for vote := range votes {
 			pub.Publish("votes", []byte(vote))
 		}
 		log.Println("Publisher: 停止中です")
