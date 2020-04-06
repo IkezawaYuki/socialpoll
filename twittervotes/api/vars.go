@@ -12,31 +12,32 @@ import (
 
 var (
 	varsLock sync.RWMutex
-	vars map[*http.Request]map[string]interface{}
+	vars     map[*http.Request]map[string]interface{}
 )
 
-func main()  {
+func main() {
 	var (
-		addr = flag.String("addr", ":8080", "エンドポイントのアドレス")
+		addr  = flag.String("addr", ":8080", "エンドポイントのアドレス")
 		mongo = flag.String("mongo", "localhost", "MongoDBのアドレス")
 	)
 	flag.Parse()
 	log.Println("MongoDBに接続します", *mongo)
 	db, err := mgo.Dial(*mongo)
-	if err != nil{
+	if err != nil {
 		log.Fatalln("MongoDBへの接続に失敗しました")
 	}
 	defer db.Close()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/polls/", withCORS(withVars(withData(db, withAPIKey(handlePolls)))))
+	mux.HandleFunc("/polls", withCORS(withVars(withData(db, withAPIKey(handlePolls)))))
 	log.Println("Webサーバーを開始します：", *addr)
 	graceful.Run(*addr, 1*time.Second, mux)
 	log.Println("停止します...")
 }
 
-func withAPIKey(fn http.HandlerFunc)http.HandlerFunc{
+func withAPIKey(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isValidAPIKey(r.URL.Query().Get("key")){
+		if !isValidAPIKey(r.URL.Query().Get("key")) {
 			respondErr(w, r, http.StatusUnauthorized, "不正なAPIキーです")
 			return
 		}
@@ -44,7 +45,7 @@ func withAPIKey(fn http.HandlerFunc)http.HandlerFunc{
 	}
 }
 
-func withData(d *mgo.Session, f http.HandlerFunc)http.HandlerFunc{
+func withData(d *mgo.Session, f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		thisDb := d.Copy()
 		defer thisDb.Close()
@@ -53,7 +54,7 @@ func withData(d *mgo.Session, f http.HandlerFunc)http.HandlerFunc{
 	}
 }
 
-func withVars(fn http.HandlerFunc)http.HandlerFunc{
+func withVars(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		OpenVars(r)
 		defer CloseVars(r)
@@ -61,7 +62,7 @@ func withVars(fn http.HandlerFunc)http.HandlerFunc{
 	}
 }
 
-func withCORS(fn http.HandlerFunc)http.HandlerFunc{
+func withCORS(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Expose-Headers", "Location")
@@ -69,33 +70,33 @@ func withCORS(fn http.HandlerFunc)http.HandlerFunc{
 	}
 }
 
-func isValidAPIKey(key string) bool{
+func isValidAPIKey(key string) bool {
 	return "abc123" == key
 }
 
-func OpenVars(r *http.Request){
+func OpenVars(r *http.Request) {
 	varsLock.Lock()
-	if vars == nil{
+	if vars == nil {
 		vars = map[*http.Request]map[string]interface{}{}
 	}
 	vars[r] = map[string]interface{}{}
 	varsLock.Unlock()
 }
 
-func CloseVars(r *http.Request){
+func CloseVars(r *http.Request) {
 	varsLock.Lock()
 	delete(vars, r)
 	varsLock.Unlock()
 }
 
-func GetVar(r *http.Request, key string)interface{}{
+func GetVar(r *http.Request, key string) interface{} {
 	varsLock.Lock()
 	value := vars[r][key]
 	varsLock.Unlock()
 	return value
 }
 
-func SetVar(r *http.Request, key string, value interface{}){
+func SetVar(r *http.Request, key string, value interface{}) {
 	varsLock.Lock()
 	vars[r][key] = value
 	varsLock.Unlock()

@@ -72,7 +72,7 @@ type poll struct {
 
 func loadOptions() ([]string, error) {
 	var options []string
-	iter := db.DB("ballots").C("polls").Find(nil).Iter()
+	iter := db.DB("ballots").C("poll").Find(nil).Iter()
 	var p poll
 	for iter.Next(&p) {
 		options = append(options, p.Options...)
